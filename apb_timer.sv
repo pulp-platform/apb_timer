@@ -1,5 +1,5 @@
 // define three registers per timer - timer, cmp and prescaler registers
-`define REGS_MAX_IDX             'd3
+`define REGS_MAX_IDX             'd2
 `define REG_TIMER                 2'b00
 `define REG_PRESCALER             2'b01
 `define REG_CMP                   2'b10
@@ -23,95 +23,104 @@ module apb_timer
 	output logic				[1:0] irq_o // overflow and cmp interrupt
 );
 
-// APB register interface
-logic [`REGS_MAX_IDX-1:0]       register_adr;
-assign register_adr = PADDR[`REGS_MAX_IDX + 2:2];
+    // APB register interface
+    logic [`REGS_MAX_IDX-1:0]       register_adr;
+    assign register_adr = PADDR[`REGS_MAX_IDX + 2:2];
+    // APB logic: we are always ready to capture the data into our regs
+    // not supporting transfare failure
+    assign PREADY  = 1'b1;
+    assign PSLVERR = 1'b0;
+    // registers
+    logic [0:`REGS_MAX_IDX] [31:0]  regs_q, regs_n;
+    logic [31:0] cycle_counter_n, cycle_counter_q;
 
-// registers
-logic [0:`REGS_MAX_IDX] [31:0]  regs_q, regs_n;
-logic [31:0] cycle_counter_n, cycle_counter_q;
-
-//irq logic
-always_comb
-begin
-    irq_o = 2'b0;
-
-    // overlow irq
-    if (regs_q[`REG_TIMER] == 'b1)
-        irq_o[0] = 1'b1;
-
-    // compare match irq if compare reg ist set
-    if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] == regs_q[`REG_CMP])
-        irq_o[1] = 1'b1;
-
-end
-
-// register write logic
-always_comb
-begin
-    regs_n = regs_q;
-    cycle_counter_n = cycle_counter_q + 1;
-
-    // reset timer after cmp or overflow
-    if (irq_o[1] == 1'b1)
-        regs_n[`REG_TIMER] = 1'b0;
-    else if(regs_q[`REG_PRESCALER] != 'b0 && (regs_q[`REG_PRESCALER] & cycle_counter_q) == 32'b0) // prescaler
-        regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
-    else
-        regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
-
-    // written from APB bus - gets priority
-    if (PSEL && PENABLE && PWRITE)
+    //irq logic
+    always_comb
     begin
+        irq_o = 2'b0;
 
-        unique case (register_adr)
-            `REG_TIMER:
-                regs_n[`REG_TIMER] = PWDATA;
+        // overlow irq
+        if (regs_q[`REG_TIMER] == 32'hffff_ffff)
+            irq_o[0] = 1'b1;
 
-            `REG_PRESCALER:
-                regs_n[`REG_PRESCALER] = PWDATA;
+        // compare match irq if compare reg ist set
+        if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] == regs_q[`REG_CMP])
+            irq_o[1] = 1'b1;
 
-            `REG_CMP:
-                regs_n[`REG_CMP] = PWDATA;
-        endcase
     end
-end
 
-// APB register read logic
-always_comb
-begin
-    PRDATA = 'b0;
-
-    if (PSEL && PENABLE && !PWRITE)
+    // register write logic
+    always_comb
     begin
+        regs_n = regs_q;
+        cycle_counter_n = cycle_counter_q + 1;
 
-        unique case (register_adr)
-            `REG_TIMER:
-                PRDATA = regs_q[`REG_TIMER];
+        // reset timer after cmp or overflow
+        if (irq_o[0] == 1'b1 || irq_o[1] == 1'b1)
+            regs_n[`REG_TIMER] = 1'b0;
+        else if(regs_q[`REG_PRESCALER] != 'b0 && regs_q[`REG_PRESCALER] == cycle_counter_q) // prescaler
+        begin
+            regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
+        end
+        else if (regs_q[`REG_PRESCALER] == 'b0) // normal count mode
+            regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
 
-            `REG_PRESCALER:
-                PRDATA = regs_q[`REG_PRESCALER];
+        // reset prescaler cycle counter
+        if (cycle_counter_q >= regs_q[`REG_PRESCALER])
+            cycle_counter_n = 32'b0;
 
-            `REG_CMP:
-                PRDATA = regs_q[`REG_CMP];
-        endcase
+        // written from APB bus - gets priority
+        if (PSEL && PENABLE && PWRITE)
+        begin
 
+            unique case (register_adr)
+                `REG_TIMER:
+                    regs_n[`REG_TIMER] = PWDATA;
+
+                `REG_PRESCALER:
+                    regs_n[`REG_PRESCALER] = PWDATA;
+
+                `REG_CMP:
+                    regs_n[`REG_CMP] = PWDATA;
+            endcase
+        end
     end
-end
-// synchronouse part
-always_ff @(posedge HCLK, negedge HRESETn)
-begin
-    if(~HRESETn)
+
+    // APB register read logic
+    always_comb
     begin
-        regs_q          <= '{default: 32'b0};
-        cycle_counter_q <= 32'b0;
+        PRDATA = 'b0;
+
+        if (PSEL && PENABLE && !PWRITE)
+        begin
+
+            unique case (register_adr)
+                `REG_TIMER:
+                    PRDATA = regs_q[`REG_TIMER];
+
+                `REG_PRESCALER:
+                    PRDATA = regs_q[`REG_PRESCALER];
+
+                `REG_CMP:
+                    PRDATA = regs_q[`REG_CMP];
+            endcase
+
+        end
     end
-    else
-    begin            
-        regs_q          <= regs_n;
-        cycle_counter_q <= cycle_counter_n;
+    // synchronouse part
+    always_ff @(posedge HCLK, negedge HRESETn)
+    begin
+        if(~HRESETn)
+        begin
+            regs_q          <= '{default: 32'b0};
+            cycle_counter_q <= 32'b0;
+        end
+        else
+        begin            
+            regs_q          <= regs_n;
+            cycle_counter_q <= cycle_counter_n;
+        end
     end
-end
 
 
 endmodule
