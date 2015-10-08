@@ -81,7 +81,10 @@ module apb_timer
                     regs_n[`REG_PRESCALER] = PWDATA;
 
                 `REG_CMP:
+                begin
                     regs_n[`REG_CMP] = PWDATA;
+                    regs_n[`REG_TIMER] = 32'b0; // reset timer if compare register is written                    
+                end
             endcase
         end
     end
