@@ -1,7 +1,7 @@
 // define three registers per timer - timer, cmp and prescaler registers
 `define REGS_MAX_IDX             'd2
 `define REG_TIMER                 2'b00
-`define REG_PRESCALER             2'b01
+`define REG_TIMER_CTRL            2'b01
 `define REG_CMP                   2'b10
 
 module apb_timer 
@@ -58,15 +58,15 @@ module apb_timer
         // reset timer after cmp or overflow
         if (irq_o[0] == 1'b1 || irq_o[1] == 1'b1)
             regs_n[`REG_TIMER] = 1'b0;
-        else if(regs_q[`REG_PRESCALER] != 'b0 && regs_q[`REG_PRESCALER] == cycle_counter_q) // prescaler
+        else if(regs_q[`REG_TIMER_CTRL] != 'b0 && regs_q[`REG_TIMER_CTRL] == cycle_counter_q) // prescaler
         begin
             regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
         end
-        else if (regs_q[`REG_PRESCALER] == 'b0) // normal count mode
+        else if (regs_q[`REG_TIMER_CTRL] == 'b0) // normal count mode
             regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
 
         // reset prescaler cycle counter
-        if (cycle_counter_q >= regs_q[`REG_PRESCALER])
+        if (cycle_counter_q >= regs_q[`REG_TIMER_CTRL])
             cycle_counter_n = 32'b0;
 
         // written from APB bus - gets priority
@@ -77,8 +77,8 @@ module apb_timer
                 `REG_TIMER:
                     regs_n[`REG_TIMER] = PWDATA;
 
-                `REG_PRESCALER:
-                    regs_n[`REG_PRESCALER] = PWDATA;
+                `REG_TIMER_CTRL:
+                    regs_n[`REG_TIMER_CTRL] = PWDATA;
 
                 `REG_CMP:
                 begin
@@ -101,8 +101,8 @@ module apb_timer
                 `REG_TIMER:
                     PRDATA = regs_q[`REG_TIMER];
 
-                `REG_PRESCALER:
-                    PRDATA = regs_q[`REG_PRESCALER];
+                `REG_TIMER_CTRL:
+                    PRDATA = regs_q[`REG_TIMER_CTRL];
 
                 `REG_CMP:
                     PRDATA = regs_q[`REG_CMP];
