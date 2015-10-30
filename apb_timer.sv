@@ -1,12 +1,9 @@
-// define three registers per timer - timer, cmp and prescaler registers
-`define REGS_MAX_IDX             'd2
-`define REG_TIMER                 2'b00
-`define REG_TIMER_CTRL            2'b01
-`define REG_CMP                   2'b10
+`define REGS_MAX_ADR             2'd2
 
 module apb_timer 
 #(
-	parameter APB_ADDR_WIDTH = 12  //APB slaves are 4KB by default
+    parameter APB_ADDR_WIDTH = 12,  //APB slaves are 4KB by default
+    parameter TIMER_CNT = 2 // how many timer should be instantiated
 )
 (
     input  logic                      HCLK,
@@ -19,111 +16,62 @@ module apb_timer
     output logic               [31:0] PRDATA,
     output logic                      PREADY,
     output logic                      PSLVERR,
-	
-	output logic				[1:0] irq_o // overflow and cmp interrupt
+    
+    output logic                [(TIMER_CNT * 2) - 1:0] irq_o // overflow and cmp interruptT
 );
 
-    // APB register interface
-    logic [`REGS_MAX_IDX-1:0]       register_adr;
-    assign register_adr = PADDR[`REGS_MAX_IDX + 2:2];
-    // APB logic: we are always ready to capture the data into our regs
-    // not supporting transfare failure
-    assign PREADY  = 1'b1;
-    assign PSLVERR = 1'b0;
-    // registers
-    logic [0:`REGS_MAX_IDX] [31:0]  regs_q, regs_n;
-    logic [31:0] cycle_counter_n, cycle_counter_q;
+    logic [2 * TIMER_CNT:0] psel_int, pready, pslverr;
 
-    //irq logic
+    logic [2 * TIMER_CNT:0] [31:0] prdata;
+
+    assign slave_address_int = PADDR[$clog2(TIMER_CNT)+ `REGS_MAX_ADR + 1:`REGS_MAX_ADR + 2];
+
     always_comb
     begin
-        irq_o = 2'b0;
-
-        // overlow irq
-        if (regs_q[`REG_TIMER] == 32'hffff_ffff)
-            irq_o[0] = 1'b1;
-
-        // compare match irq if compare reg ist set
-        if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] == regs_q[`REG_CMP])
-            irq_o[1] = 1'b1;
-
+        psel_int = 'b0;
+        psel_int[slave_address_int] = PSEL;
     end
 
-    // register write logic
+    // output mux
     always_comb
     begin
-        regs_n = regs_q;
-        cycle_counter_n = cycle_counter_q + 1;
 
-        // reset timer after cmp or overflow
-        if (irq_o[0] == 1'b1 || irq_o[1] == 1'b1)
-            regs_n[`REG_TIMER] = 1'b0;
-        else if(regs_q[`REG_TIMER_CTRL] != 'b0 && regs_q[`REG_TIMER_CTRL] == cycle_counter_q) // prescaler
+        if (psel_int != 'b00)
         begin
-            regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
-        end
-        else if (regs_q[`REG_TIMER_CTRL] == 'b0) // normal count mode
-            regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
-
-        // reset prescaler cycle counter
-        if (cycle_counter_q >= regs_q[`REG_TIMER_CTRL])
-            cycle_counter_n = 32'b0;
-
-        // written from APB bus - gets priority
-        if (PSEL && PENABLE && PWRITE)
-        begin
-
-            unique case (register_adr)
-                `REG_TIMER:
-                    regs_n[`REG_TIMER] = PWDATA;
-
-                `REG_TIMER_CTRL:
-                    regs_n[`REG_TIMER_CTRL] = PWDATA;
-
-                `REG_CMP:
-                begin
-                    regs_n[`REG_CMP] = PWDATA;
-                    regs_n[`REG_TIMER] = 32'b0; // reset timer if compare register is written                    
-                end
-            endcase
-        end
-    end
-
-    // APB register read logic
-    always_comb
-    begin
-        PRDATA = 'b0;
-
-        if (PSEL && PENABLE && !PWRITE)
-        begin
-
-            unique case (register_adr)
-                `REG_TIMER:
-                    PRDATA = regs_q[`REG_TIMER];
-
-                `REG_TIMER_CTRL:
-                    PRDATA = regs_q[`REG_TIMER_CTRL];
-
-                `REG_CMP:
-                    PRDATA = regs_q[`REG_CMP];
-            endcase
-
-        end
-    end
-    // synchronouse part
-    always_ff @(posedge HCLK, negedge HRESETn)
-    begin
-        if(~HRESETn)
-        begin
-            regs_q          <= '{default: 32'b0};
-            cycle_counter_q <= 32'b0;
+            PRDATA = prdata[slave_address_int];
+            PREADY = pready[slave_address_int];
+            PSLVERR = pslverr[slave_address_int];
         end
         else
-        begin            
-            regs_q          <= regs_n;
-            cycle_counter_q <= cycle_counter_n;
+        begin
+            PRDATA = 'b0;
+            PREADY = 1'b1;
+            PSLVERR = 1'b0;
         end
     end
 
 
+    genvar k;
+
+    generate
+    for(k = 0; k < TIMER_CNT; k++)
+    begin : TIMER_GEN
+      timer timer_i
+      (
+          .HCLK       ( HCLK          ),
+          .HRESETn    ( HRESETn       ),
+
+          .PADDR      ( PADDR        ),
+          .PWDATA     ( PWDATA       ),
+          .PWRITE     ( PWRITE       ),
+          .PSEL       ( psel_int[k]  ),
+          .PENABLE    ( PENABLE      ),
+          .PRDATA     ( prdata[k]    ),
+          .PREADY     ( pready[k]    ),
+          .PSLVERR    ( pslverr[k]   ),
+
+          .irq_o      ( irq_o[2*k+1 : 2*k] )
+      );
+    end
+endgenerate
 endmodule
