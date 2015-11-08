@@ -3,7 +3,7 @@
 module apb_timer 
 #(
     parameter APB_ADDR_WIDTH = 12,  //APB slaves are 4KB by default
-    parameter TIMER_CNT = 2 // how many timer should be instantiated
+    parameter TIMER_CNT = 2 // how many timers should be instantiated
 )
 (
     input  logic                      HCLK,
@@ -21,7 +21,7 @@ module apb_timer
 );
 
     logic [2 * TIMER_CNT:0] psel_int, pready, pslverr;
-
+    logic [$clog2(TIMER_CNT) - 1:0] slave_address_int;
     logic [2 * TIMER_CNT:0] [31:0] prdata;
 
     assign slave_address_int = PADDR[$clog2(TIMER_CNT)+ `REGS_MAX_ADR + 1:`REGS_MAX_ADR + 2];

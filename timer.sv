@@ -37,6 +37,8 @@ module timer
     logic [0:`REGS_MAX_IDX] [31:0]  regs_q, regs_n;
     logic [31:0] cycle_counter_n, cycle_counter_q;
 
+    logic [2:0] prescaler_int;
+
     //irq logic
     always_comb
     begin
@@ -66,7 +68,7 @@ module timer
         begin
             regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1; //prescaler mode
         end
-        else if (regs_q[`REG_TIMER_CTRL][`ENABLE_BIT] && regs_q[`REG_TIMER_CTRL] == 'b0) // normal count mode
+        else if (regs_q[`REG_TIMER_CTRL][`ENABLE_BIT] && regs_q[`REG_TIMER_CTRL][`PRESCALER_STOPBIT:`PRESCALER_STARTBIT] == 'b0) // normal count mode
             regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
 
         // reset prescaler cycle counter
@@ -77,7 +79,7 @@ module timer
         if (PSEL && PENABLE && PWRITE)
         begin
 
-            unique case (register_adr)
+            case (register_adr)
                 `REG_TIMER:
                     regs_n[`REG_TIMER] = PWDATA;
 
@@ -101,7 +103,7 @@ module timer
         if (PSEL && PENABLE && !PWRITE)
         begin
 
-            unique case (register_adr)
+            case (register_adr)
                 `REG_TIMER:
                     PRDATA = regs_q[`REG_TIMER];
 
