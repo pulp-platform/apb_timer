@@ -17,12 +17,12 @@ module apb_timer
     output logic                      PREADY,
     output logic                      PSLVERR,
     
-    output logic                [(TIMER_CNT * 2) - 1:0] irq_o // overflow and cmp interruptT
+    output logic                [(TIMER_CNT * 2) - 1:0] irq_o // overflow and cmp interrupt
 );
 
-    logic [2 * TIMER_CNT:0] psel_int, pready, pslverr;
+    logic [TIMER_CNT-1:0] psel_int, pready, pslverr;
     logic [$clog2(TIMER_CNT) - 1:0] slave_address_int;
-    logic [2 * TIMER_CNT:0] [31:0] prdata;
+    logic [TIMER_CNT-1:0] [31:0] prdata;
 
     assign slave_address_int = PADDR[$clog2(TIMER_CNT)+ `REGS_MAX_ADR + 1:`REGS_MAX_ADR + 2];
 
