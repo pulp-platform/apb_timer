@@ -1,6 +1,16 @@
+// Copyright 2015 ETH Zurich and University of Bologna.
+// Copyright and related rights are licensed under the Solderpad Hardware
+// License, Version 0.51 (the “License”); you may not use this file except in
+// compliance with the License.  You may obtain a copy of the License at
+// http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+// or agreed to in writing, software, hardware and materials distributed under
+// this License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 `define REGS_MAX_ADR             2'd2
 
-module apb_timer 
+module apb_timer
 #(
     parameter APB_ADDR_WIDTH = 12,  //APB slaves are 4KB by default
     parameter TIMER_CNT = 2 // how many timers should be instantiated
@@ -16,8 +26,8 @@ module apb_timer
     output logic               [31:0] PRDATA,
     output logic                      PREADY,
     output logic                      PSLVERR,
-    
-    output logic                [(TIMER_CNT * 2) - 1:0] irq_o // overflow and cmp interrupt
+
+    output logic [(TIMER_CNT * 2) - 1:0] irq_o // overflow and cmp interrupt
 );
 
     logic [TIMER_CNT-1:0] psel_int, pready, pslverr;
@@ -28,7 +38,7 @@ module apb_timer
 
     always_comb
     begin
-        psel_int = 'b0;
+        psel_int = '0;
         psel_int[slave_address_int] = PSEL;
     end
 
@@ -36,7 +46,7 @@ module apb_timer
     always_comb
     begin
 
-        if (psel_int != 'b00)
+        if (psel_int != '0)
         begin
             PRDATA = prdata[slave_address_int];
             PREADY = pready[slave_address_int];
@@ -44,7 +54,7 @@ module apb_timer
         end
         else
         begin
-            PRDATA = 'b0;
+            PRDATA = '0;
             PREADY = 1'b1;
             PSLVERR = 1'b0;
         end

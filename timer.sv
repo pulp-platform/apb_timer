@@ -1,3 +1,13 @@
+// Copyright 2015 ETH Zurich and University of Bologna.
+// Copyright and related rights are licensed under the Solderpad Hardware
+// License, Version 0.51 (the “License”); you may not use this file except in
+// compliance with the License.  You may obtain a copy of the License at
+// http://solderpad.org/licenses/SHL-0.51. Unless required by applicable law
+// or agreed to in writing, software, hardware and materials distributed under
+// this License is distributed on an “AS IS” BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 // define three registers per timer - timer, cmp and prescaler registers
 `define REGS_MAX_IDX             'd2
 `define REG_TIMER                 2'b00
@@ -7,7 +17,7 @@
 `define PRESCALER_STOPBIT         'd5
 `define ENABLE_BIT                'd0
 
-module timer 
+module timer
 #(
     parameter APB_ADDR_WIDTH = 12  //APB slaves are 4KB by default
 )
@@ -22,7 +32,7 @@ module timer
     output logic               [31:0] PRDATA,
     output logic                      PREADY,
     output logic                      PSLVERR,
-    
+
     output logic                [1:0] irq_o // overflow and cmp interrupt
 );
 
@@ -89,7 +99,7 @@ module timer
                 `REG_CMP:
                 begin
                     regs_n[`REG_CMP] = PWDATA;
-                    regs_n[`REG_TIMER] = 32'b0; // reset timer if compare register is written                    
+                    regs_n[`REG_TIMER] = 32'b0; // reset timer if compare register is written
                 end
             endcase
         end
@@ -125,7 +135,7 @@ module timer
             cycle_counter_q <= 32'b0;
         end
         else
-        begin            
+        begin
             regs_q          <= regs_n;
             cycle_counter_q <= cycle_counter_n;
         end
