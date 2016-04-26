@@ -1,5 +1,7 @@
 apb_timer:
   files: [
+    soc_apb_timer.sv,
+    soc_apb_timer_counter.sv,
     apb_timer.sv,
     timer.sv,
   ]
