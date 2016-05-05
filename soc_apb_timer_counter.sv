@@ -22,7 +22,6 @@ module soc_apb_timer_counter
    );
    
    logic [31:0]        s_count, s_count_reg;
-   logic               s_enable_count_reg;
    
    // COUNTER
    always_comb

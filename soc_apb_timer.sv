@@ -52,15 +52,13 @@ module soc_apb_timer
    
    logic [31:0] 		      s_cfg_lo, s_cfg_lo_reg;
    logic [31:0] 		      s_cfg_hi, s_cfg_hi_reg;
-   logic [31:0] 		      s_timer_val_lo, s_timer_val_lo_reg;
-   logic [31:0] 		      s_timer_val_hi, s_timer_val_hi_reg;
+   logic [31:0] 		      s_timer_val_lo;
+   logic [31:0] 		      s_timer_val_hi;
    logic [31:0] 		      s_timer_cmp_lo, s_timer_cmp_lo_reg;
    logic [31:0] 		      s_timer_cmp_hi, s_timer_cmp_hi_reg;
    
    logic 			      s_enable_count_lo,s_enable_count_hi,s_enable_count_prescaler;
    logic 			      s_reset_count_lo,s_reset_count_hi,s_reset_count_prescaler;
-   logic [31:0]			      s_compare_value_lo,s_compare_value_hi,s_compare_value_prescaler;
-   logic [31:0]  		      s_counter_value_lo,s_counter_value_hi,s_counter_vaule_prescaler;
    logic 			      s_target_reached_lo,s_target_reached_hi,s_target_reached_prescaler;
    
    //**********************************************************
@@ -73,8 +71,6 @@ module soc_apb_timer
 	
 	s_cfg_lo       = s_cfg_lo_reg;
 	s_cfg_hi       = s_cfg_hi_reg;
-	s_timer_val_lo = s_timer_val_lo_reg;
-	s_timer_val_hi = s_timer_val_hi_reg;
 	s_timer_cmp_lo = s_timer_cmp_lo_reg;
 	s_timer_cmp_hi = s_timer_cmp_hi_reg;
 	
@@ -89,12 +85,6 @@ module soc_apb_timer
 	       
 	       `CFG_REG_HI:
 		 s_cfg_hi       = PWDATA_i;
-	       
-	       `TIMER_VAL_LO:
-                 s_timer_val_lo = PWDATA_i;
-	       
-	       `TIMER_VAL_HI:
-                 s_timer_val_hi = PWDATA_i;
 	       
 	       `TIMER_CMP_LO:
                  s_timer_cmp_lo = PWDATA_i;
@@ -117,7 +107,7 @@ module soc_apb_timer
 	       end
 	     else
 	       begin
-		  if ( ( s_cfg_lo[`ONE_SHOT_BIT] == 1'b1 ) && ( s_counter_value_lo  == 32'hFFFFFFFF ) && ( s_target_reached_hi == 1'b1 ) ) // ONE SHOT FEATURE: DISABLES TIMER ONCE LOW COUNTER REACHES 0xFFFFFFFF and HI COUNTER TARGET IS REACHED
+		  if ( ( s_cfg_lo[`ONE_SHOT_BIT] == 1'b1 ) && ( s_timer_val_lo  == 32'hFFFFFFFF ) && ( s_target_reached_hi == 1'b1 ) ) // ONE SHOT FEATURE: DISABLES TIMER ONCE LOW COUNTER REACHES 0xFFFFFFFF and HI COUNTER TARGET IS REACHED
 		    s_cfg_lo[`ENABLE_BIT] = 0;
 	       end
 	  end
@@ -141,8 +131,6 @@ module soc_apb_timer
           begin
 	     s_cfg_lo_reg       <= 0;
 	     s_cfg_hi_reg       <= 0;
-	     s_timer_val_lo_reg <= 0;
-	     s_timer_val_hi_reg <= 0;
 	     s_timer_cmp_lo_reg <= 0;
 	     s_timer_cmp_hi_reg <= 0;
           end
@@ -150,8 +138,6 @@ module soc_apb_timer
           begin
 	     s_cfg_lo_reg       <= s_cfg_lo;
 	     s_cfg_hi_reg       <= s_cfg_hi;
-	     s_timer_val_lo_reg <= s_timer_val_lo;
-	     s_timer_val_hi_reg <= s_timer_val_hi;
 	     s_timer_cmp_lo_reg <= s_timer_cmp_lo;
 	     s_timer_cmp_hi_reg <= s_timer_cmp_hi;
           end
@@ -174,10 +160,10 @@ module soc_apb_timer
                  PRDATA_o = s_cfg_hi_reg;
 	       
                `TIMER_VAL_LO:
-                 PRDATA_o = s_timer_val_lo_reg;
+                 PRDATA_o = s_timer_val_lo;
 	       
 	       `TIMER_VAL_HI:
-                 PRDATA_o = s_timer_val_hi_reg;
+                 PRDATA_o = s_timer_val_hi;
 	       
 	       `TIMER_CMP_LO:
                  PRDATA_o = s_timer_cmp_lo_reg;
@@ -218,7 +204,7 @@ module soc_apb_timer
 	       end
 	     else // 64-bit mode
 	       begin
-		  if ( ( s_cfg_lo_reg[`CMP_CLR_BIT] == 1'b1 ) && ( s_counter_value_lo  == 32'hFFFFFFFF )  && ( s_target_reached_hi == 1'b1 ) ) // if compare and clear feature is enabled the counter is resetted when the target is reached
+		  if ( ( s_cfg_lo_reg[`CMP_CLR_BIT] == 1'b1 ) && ( s_timer_val_lo  == 32'hFFFFFFFF )  && ( s_target_reached_hi == 1'b1 ) ) // if compare and clear feature is enabled the counter is resetted when the target is reached
 		    begin
 		       s_reset_count_lo = 1;
 		    end
@@ -240,7 +226,7 @@ module soc_apb_timer
 	       end
 	     else // 64-bit mode
 	       begin
-		  if ( ( s_cfg_lo_reg[`CMP_CLR_BIT] == 1'b1 ) && ( s_counter_value_lo == 32'hFFFFFFFF )  && ( s_target_reached_hi == 1'b1 ) ) // if compare and clear feature is enabled the counter is resetted when the target is reached
+		  if ( ( s_cfg_lo_reg[`CMP_CLR_BIT] == 1'b1 ) && ( s_timer_val_lo == 32'hFFFFFFFF )  && ( s_target_reached_hi == 1'b1 ) ) // if compare and clear feature is enabled the counter is resetted when the target is reached
 		    begin
 		       s_reset_count_hi = 1;
 		    end
@@ -283,7 +269,7 @@ module soc_apb_timer
 	// 64-bit mode
 	if ( ( s_cfg_lo_reg[`ENABLE_BIT] == 1'b1 ) && ( s_cfg_lo_reg[`MODE_64_BIT] == 1'b1 ) ) // timer enabled,  64-bit mode
 	  begin
-	     s_enable_count_hi = ( s_compare_value_lo == 32'hFFFFFFFF );
+	     s_enable_count_hi = ( s_timer_cmp_lo_reg == 32'hFFFFFFFF );
 	     if ( ( s_cfg_lo_reg[`PRESCALER_EN_BIT] == 1'b0 ) ) // prescaler disabled
 	       begin
 		  s_enable_count_lo = 1'b1;
@@ -295,6 +281,10 @@ module soc_apb_timer
 	       end
 	  end
      end
+   
+   // IRQ SIGNALS GENERATION
+   assign irq_lo_o = s_target_reached_lo & s_cfg_lo_reg[`IRQ_BIT];
+   assign irq_hi_o = s_target_reached_hi & s_cfg_hi_reg[`IRQ_BIT];
    
    //**********************************************************
    //*************** COUNTERS *********************************
@@ -319,10 +309,10 @@ module soc_apb_timer
       .rst_ni(rst_ni),
       
       .enable_count_i(s_enable_count_lo),
-      .reset_count_i(s_enable_count_lo),
-      .compare_value_i(s_compare_value_lo),
+      .reset_count_i(s_reset_count_lo),
+      .compare_value_i(s_timer_cmp_lo_reg),
       
-      .counter_value_o(s_counter_value_lo),
+      .counter_value_o(s_timer_val_lo),
       .target_reached_o(s_target_reached_lo)
    );
    
@@ -332,14 +322,14 @@ module soc_apb_timer
       .rst_ni(rst_ni),
       
       .enable_count_i(s_enable_count_hi),
-      .reset_count_i(s_reset_count_prescaler),
-      .compare_value_i(s_compare_value_hi),
+      .reset_count_i(s_reset_count_hi),
+      .compare_value_i(s_timer_cmp_hi_reg),
       
-      .counter_value_o(s_counter_value_hi),
+      .counter_value_o(s_timer_val_hi),
       .target_reached_o(s_target_reached_hi)
       );
    
    assign PREADY_o  = 1'b1;
    assign PSLVERR_o = 1'b0;
-   
+
 endmodule
