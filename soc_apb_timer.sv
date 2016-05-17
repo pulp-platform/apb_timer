@@ -16,11 +16,12 @@
 `define TIMER_CMP_HI       5'h14
 
 `define ENABLE_BIT          'd0
-`define IRQ_BIT             'd1
-`define IEM_BIT             'd2
-`define CMP_CLR_BIT         'd3
-`define ONE_SHOT_BIT        'd4
-`define PRESCALER_EN_BIT    'd5
+`define RESET_BIT           'd1
+`define IRQ_BIT             'd2
+`define IEM_BIT             'd3
+`define CMP_CLR_BIT         'd4
+`define ONE_SHOT_BIT        'd5
+`define PRESCALER_EN_BIT    'd6
 `define PRESCALER_START_BIT 'd8
 `define PRESCALER_STOP_BIT  'd15
 `define MODE_64_BIT         'd31
@@ -57,9 +58,10 @@ module soc_apb_timer
    logic [31:0] 		      s_timer_cmp_lo, s_timer_cmp_lo_reg;
    logic [31:0] 		      s_timer_cmp_hi, s_timer_cmp_hi_reg;
    
-   logic 			      s_enable_count_lo,s_enable_count_hi,s_enable_count_prescaler;
-   logic 			      s_reset_count_lo,s_reset_count_hi,s_reset_count_prescaler;
-   logic 			      s_target_reached_lo,s_target_reached_hi,s_target_reached_prescaler;
+   logic 			      s_enable_count_lo,s_enable_count_hi,s_enable_count_prescaler_lo,s_enable_count_prescaler_hi;
+   logic 			      s_reset_count_lo,s_reset_count_hi,s_reset_count_prescaler_lo,s_reset_count_prescaler_hi;
+   logic 			      s_target_reached_lo,s_target_reached_hi,s_target_reached_prescaler_lo, s_target_reached_prescaler_hi;
+   logic 			      s_clear_reset_lo, s_clear_reset_hi;
    
    //**********************************************************
    //*************** APB INTERFACE ****************************
@@ -121,8 +123,15 @@ module soc_apb_timer
 	       s_cfg_hi[`ENABLE_BIT] = 0;
 	  end
 	
+	// RESET LO
+	if (s_reset_count_lo == 1'b1)
+	  s_cfg_lo[`RESET_BIT] = 1'b0;
+	
+	// RESET HI
+	if (s_reset_count_hi == 1'b1)
+	  s_cfg_hi[`RESET_BIT] = 1'b0;
+	
      end
-   
    
    // sequential part
    always_ff @(posedge clk_i, negedge rst_ni)
@@ -184,14 +193,15 @@ module soc_apb_timer
    // RESET COUNT SIGNAL GENERATION
    always_comb
      begin
-	s_reset_count_lo        = 1'b0;
-	s_reset_count_hi        = 1'b0;
-	s_reset_count_prescaler = 1'b0;
+	s_reset_count_lo           = 1'b0;
+	s_reset_count_hi           = 1'b0;
+	s_reset_count_prescaler_lo = 1'b0;
+	s_reset_count_prescaler_hi = 1'b0;
 	
-	if ( ~s_cfg_lo_reg[`ENABLE_BIT] & s_cfg_lo[`ENABLE_BIT] ) // when we enable the counter or an impun event arrives the lo counter is resetted
+	if ( s_cfg_lo_reg[`RESET_BIT] )
 	  begin
-	     s_reset_count_lo        = 1'b1;
-	     s_reset_count_prescaler = 1'b1;
+	     s_reset_count_lo           = 1'b1;
+	     s_reset_count_prescaler_lo = 1'b1;
 	  end
 	else
 	  begin
@@ -211,9 +221,10 @@ module soc_apb_timer
 	       end
 	  end
 	
-	if ( ~s_cfg_hi_reg[`ENABLE_BIT] & s_cfg_hi[`ENABLE_BIT] ) // when we enable the counter or an imput event arrives the lo counter is resetted
+	if ( s_cfg_hi_reg[`RESET_BIT] )
 	  begin
-	     s_reset_count_hi        = 1'b1;
+	     s_reset_count_hi           = 1'b1;
+	     s_reset_count_prescaler_hi = 1'b1;
 	  end
 	else
 	  begin
@@ -233,14 +244,25 @@ module soc_apb_timer
 	       end
           end
 	
+	if ( ( s_cfg_lo_reg[`PRESCALER_EN_BIT] ) && ( s_target_reached_prescaler_lo == 1'b1 ) )
+	  begin
+	     s_reset_count_prescaler_lo = 1'b1;
+	  end
+
+	if ( ( s_cfg_hi_reg[`PRESCALER_EN_BIT] ) && ( s_target_reached_prescaler_hi == 1'b1 ) )
+	  begin
+	     s_reset_count_prescaler_hi = 1'b1;
+	  end
+	
      end
    
    // ENABLE SIGNALS GENERATION
    always_comb
      begin
-	s_enable_count_lo = 1'b0;
-	s_enable_count_hi = 1'b0;
-	s_enable_count_prescaler = 1'b0;
+	s_enable_count_lo           = 1'b0;
+	s_enable_count_hi           = 1'b0;
+	s_enable_count_prescaler_lo = 1'b0;
+	s_enable_count_prescaler_hi = 1'b0;
 	
 	// 32 bit mode lo counter
 	if ( s_cfg_lo_reg[`ENABLE_BIT] == 1'b1 )
@@ -249,8 +271,8 @@ module soc_apb_timer
 	       s_enable_count_lo = 1'b1;
 	     else // prescaler enabled
 	       begin
-		  s_enable_count_lo        = s_target_reached_prescaler;
-		  s_enable_count_prescaler = 1'b1;
+		  s_enable_count_lo           = s_target_reached_prescaler_lo;
+		  s_enable_count_prescaler_lo = 1'b1;
 	       end
 	  end
 	
@@ -261,8 +283,8 @@ module soc_apb_timer
 	       s_enable_count_hi = 1'b1;
 	     else // prescaler enabled
 	       begin
-		  s_enable_count_hi        = s_target_reached_prescaler;
-		  s_enable_count_prescaler = 1'b1;
+		  s_enable_count_hi           = s_target_reached_prescaler_hi;
+		  s_enable_count_prescaler_hi = 1'b1;
 	       end
 	  end
 	
@@ -276,8 +298,8 @@ module soc_apb_timer
 	       end
 	     else
 	       begin
-		  s_enable_count_lo        = s_target_reached_prescaler;
-		  s_enable_count_prescaler = 1'b1;
+		  s_enable_count_lo           = s_target_reached_prescaler_lo;
+		  s_enable_count_prescaler_lo = 1'b1;
 	       end
 	  end
      end
@@ -290,17 +312,30 @@ module soc_apb_timer
    //*************** COUNTERS *********************************
    //**********************************************************
    
-   soc_apb_timer_counter prescaler_i
+   soc_apb_timer_counter prescaler_lo_i
      (
       .clk_i(clk_i),
       .rst_ni(rst_ni),
       
-      .enable_count_i(s_enable_count_prescaler),
-      .reset_count_i(s_reset_count_prescaler),
+      .enable_count_i(s_enable_count_prescaler_lo),
+      .reset_count_i(s_reset_count_prescaler_lo),
       .compare_value_i({24'd0,s_cfg_lo_reg[`PRESCALER_STOP_BIT:`PRESCALER_START_BIT]}),
       
       .counter_value_o(),
-      .target_reached_o(s_target_reached_prescaler)
+      .target_reached_o(s_target_reached_prescaler_lo)
+   );
+
+   soc_apb_timer_counter prescaler_hi_i
+     (
+      .clk_i(clk_i),
+      .rst_ni(rst_ni),
+      
+      .enable_count_i(s_enable_count_prescaler_hi),
+      .reset_count_i(s_reset_count_prescaler_hi),
+      .compare_value_i({24'd0,s_cfg_hi_reg[`PRESCALER_STOP_BIT:`PRESCALER_START_BIT]}),
+      
+      .counter_value_o(),
+      .target_reached_o(s_target_reached_prescaler_hi)
    );
    
    soc_apb_timer_counter counter_lo_i

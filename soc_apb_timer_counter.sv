@@ -47,12 +47,15 @@ module soc_apb_timer_counter
      end
    
    // COMPARATOR
-   always_comb
+   always_ff@(posedge clk_i, negedge rst_ni)
      begin
-	if ( s_count == compare_value_i )
-	  target_reached_o = 1;
+	if (rst_ni == 0)
+	   target_reached_o <= 1'b0;
 	else
-	  target_reached_o = 0;
+	  if ( s_count == compare_value_i )
+	    target_reached_o = 1'b1;
+	  else
+	    target_reached_o = 1'b0;
      end
    
    assign counter_value_o = s_count_reg;
