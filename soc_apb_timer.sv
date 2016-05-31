@@ -28,21 +28,24 @@
 
 module soc_apb_timer
   #(
-    parameter APB_ADDR_WIDTH = 32,
-    parameter APB_DATA_WIDTH = 32
+    parameter ID_WIDTH       = 5
     )
    (
     input  logic                      clk_i,
     input  logic                      rst_ni,
     
-    input  logic [APB_ADDR_WIDTH-1:0] PADDR_i,
-    input  logic               [31:0] PWDATA_i,
-    input  logic                      PWRITE_i,
-    input  logic                      PSEL_i,
-    input  logic                      PENABLE_i,
-    output logic               [31:0] PRDATA_o,
-    output logic                      PREADY_o,
-    output logic                      PSLVERR_o,
+    input logic                       req_i,
+    input logic [31:0]                addr_i,
+    input logic                       wen_i,
+    input logic [31:0]                wdata_i,
+    input logic [3:0]                 be_i,
+    input logic [ID_WIDTH-1:0]        id_i,
+    output logic                      gnt_o,
+    
+    output logic                      r_valid_o,
+    output logic                      r_opc_o,
+    output logic [ID_WIDTH-1:0]       r_id_o,
+    output logic [31:0]               r_rdata_o,
     
     input  logic                      event_lo_i,
     input  logic                      event_hi_i,
@@ -50,6 +53,9 @@ module soc_apb_timer
     output logic                      irq_lo_o,
     output logic                      irq_hi_o
     );
+   
+   logic 			      s_req,s_wen;
+   logic [31:0] 		      s_addr;
    
    logic [31:0] 		      s_cfg_lo, s_cfg_lo_reg;
    logic [31:0] 		      s_cfg_hi, s_cfg_hi_reg;
@@ -63,8 +69,76 @@ module soc_apb_timer
    logic 			      s_target_reached_lo,s_target_reached_hi,s_target_reached_prescaler_lo, s_target_reached_prescaler_hi;
    logic 			      s_clear_reset_lo, s_clear_reset_hi;
    
+   enum 			      logic [1:0] { TRANS_IDLE, TRANS_RUN } CS, NS;
+   
    //**********************************************************
-   //*************** APB INTERFACE ****************************
+   //*************** FSM FOR GNT AND R_VALID ******************
+   //**********************************************************
+   
+   always_ff @(posedge clk_i, negedge  rst_ni)
+     begin
+        if(rst_ni == 1'b0)
+          CS <= TRANS_IDLE;
+        else
+          CS <= NS;
+     end
+   
+   always_comb
+     begin
+	
+	gnt_o = 1'b1;
+	r_valid_o = 1'b0;
+	
+	case(CS)
+	  
+	  TRANS_IDLE:
+	    begin
+	       if (req_i == 1'b1)
+		 NS = TRANS_RUN;
+	       else
+		 NS = TRANS_IDLE;
+	    end
+	  
+	  TRANS_RUN:
+	    begin
+	       r_valid_o = 1'b1;
+	       if (req_i == 1'b1)
+		 NS = TRANS_RUN;
+	       else
+		 NS = TRANS_IDLE;
+	    end
+	  
+	  default:
+	    NS = TRANS_IDLE;
+	  
+	endcase
+	
+     end
+   
+   //**********************************************************
+   //*************** DELAYED ADDR, REQ, WEN *******************
+   //**********************************************************
+   
+   always_ff @(posedge clk_i, negedge  rst_ni)
+     begin
+        if(rst_ni == 1'b0)
+	  begin
+	     s_req  <= 0;
+	     s_wen  <= 0;
+             s_addr <= 0;
+	     r_id_o <= 0;
+	  end
+	else
+	  begin
+	     s_req  <= req_i;
+	     s_wen  <= wen_i;
+             s_addr <= addr_i;
+	     r_id_o <= id_i;
+	  end
+     end
+   
+   //**********************************************************
+   //*************** PERIPHS INTERFACE ************************
    //**********************************************************
    
    // APB register write logic
@@ -77,22 +151,22 @@ module soc_apb_timer
 	s_timer_cmp_hi = s_timer_cmp_hi_reg;
 	
 	// APB BUS: LOWER PRIORITY
-        if (PSEL_i && PENABLE_i && PWRITE_i)
+        if (req_i && ~wen_i)
           begin
 	     
-             case (PADDR_i[5:0])
+             case (addr_i[5:0])
 	       
 	       `CFG_REG_LO:
-		 s_cfg_lo       = PWDATA_i;
+		 s_cfg_lo       = wdata_i;
 	       
 	       `CFG_REG_HI:
-		 s_cfg_hi       = PWDATA_i;
+		 s_cfg_hi       = wdata_i;
 	       
 	       `TIMER_CMP_LO:
-                 s_timer_cmp_lo = PWDATA_i;
+                 s_timer_cmp_lo = wdata_i;
 	       
 	       `TIMER_CMP_HI:
-                 s_timer_cmp_hi = PWDATA_i;
+                 s_timer_cmp_hi = wdata_i;
 	       
              endcase
           end
@@ -155,30 +229,30 @@ module soc_apb_timer
    // APB register read logic
    always_comb
      begin
-        PRDATA_o = 'b0;
+        r_rdata_o = 'b0;
 	
-        if (PSEL_i && PENABLE_i && !PWRITE_i)
+        if (s_req && s_wen)
           begin
 	     
-             case (PADDR_i[5:0])
+             case (s_addr[5:0])
                
 	       `CFG_REG_LO:
-                 PRDATA_o = s_cfg_lo_reg;
+                 r_rdata_o = s_cfg_lo_reg;
 	       
                `CFG_REG_HI:
-                 PRDATA_o = s_cfg_hi_reg;
+                 r_rdata_o = s_cfg_hi_reg;
 	       
                `TIMER_VAL_LO:
-                 PRDATA_o = s_timer_val_lo;
+                 r_rdata_o = s_timer_val_lo;
 	       
 	       `TIMER_VAL_HI:
-                 PRDATA_o = s_timer_val_hi;
+                 r_rdata_o = s_timer_val_hi;
 	       
 	       `TIMER_CMP_LO:
-                 PRDATA_o = s_timer_cmp_lo_reg;
+                 r_rdata_o = s_timer_cmp_lo_reg;
 	       
 	       `TIMER_CMP_HI:
-                 PRDATA_o = s_timer_cmp_hi_reg;
+                 r_rdata_o = s_timer_cmp_hi_reg;
 	       
              endcase
 	     
@@ -324,7 +398,7 @@ module soc_apb_timer
       .counter_value_o(),
       .target_reached_o(s_target_reached_prescaler_lo)
    );
-
+   
    soc_apb_timer_counter prescaler_hi_i
      (
       .clk_i(clk_i),
@@ -364,7 +438,4 @@ module soc_apb_timer
       .target_reached_o(s_target_reached_hi)
       );
    
-   assign PREADY_o  = 1'b1;
-   assign PSLVERR_o = 1'b0;
-
 endmodule
