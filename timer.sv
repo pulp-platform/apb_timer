@@ -83,7 +83,8 @@ module timer
             regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
 
         // reset prescaler cycle counter
-        if (cycle_counter_q >= regs_q[`REG_TIMER_CTRL])
+        //if (cycle_counter_q >= regs_q[`REG_TIMER_CTRL])
+          if (cycle_counter_q >= prescaler_int)
             cycle_counter_n = 32'b0;
 
         // written from APB bus - gets priority
