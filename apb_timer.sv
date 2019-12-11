@@ -66,8 +66,9 @@ module apb_timer
     generate
     for(k = 0; k < TIMER_CNT; k++)
     begin : TIMER_GEN
-      timer timer_i
-      (
+      timer #(
+          .APB_ADDR_WIDTH ( APB_ADDR_WIDTH )
+      ) timer_i (
           .HCLK       ( HCLK          ),
           .HRESETn    ( HRESETn       ),
 
