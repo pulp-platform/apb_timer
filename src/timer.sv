@@ -59,7 +59,7 @@ module timer
             irq_o[0] = 1'b1;
 
         // compare match irq if compare reg ist set
-        if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] == regs_q[`REG_CMP])
+        if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] == regs_q[`REG_CMP] && prescaler_int == cycle_counter_q)
             irq_o[1] = 1'b1;
 
     end
