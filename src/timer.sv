@@ -55,7 +55,7 @@ module timer
         irq_o = 2'b0;
 
         // overlow irq
-        if (regs_q[`REG_TIMER] == 32'hffff_ffff)
+        if (regs_q[`REG_TIMER] == 32'hffff_ffff && prescaler_int == cycle_counter_q)
             irq_o[0] = 1'b1;
 
         // compare match irq if compare reg ist set
