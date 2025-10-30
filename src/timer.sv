@@ -55,11 +55,11 @@ module timer
         irq_o = 2'b0;
 
         // overlow irq
-        if (regs_q[`REG_TIMER] == 32'hffff_ffff)
+        if (regs_q[`REG_TIMER] == 32'hffff_ffff && prescaler_int == cycle_counter_q)
             irq_o[0] = 1'b1;
 
         // compare match irq if compare reg ist set
-        if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] == regs_q[`REG_CMP])
+        if (regs_q[`REG_CMP] != 'b0 && regs_q[`REG_TIMER] == regs_q[`REG_CMP] && prescaler_int == cycle_counter_q)
             irq_o[1] = 1'b1;
 
     end
@@ -82,7 +82,7 @@ module timer
             regs_n[`REG_TIMER] = regs_q[`REG_TIMER] + 1;
 
         // reset prescaler cycle counter
-        if (cycle_counter_q >= regs_q[`REG_TIMER_CTRL])
+        if (cycle_counter_q >= prescaler_int)
             cycle_counter_n = 32'b0;
 
         // written from APB bus - gets priority
